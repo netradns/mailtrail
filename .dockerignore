@@ -1,0 +1,31 @@
+# Runtime data
+data/
+
+# Dependencies (rebuilt in container)
+node_modules/
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in image)
+*.md
+
+# Compose files (not needed in image)
+docker-compose.yml
+docker-compose.example.yml
+docker-compose-image.yml
+
+# Release tooling (not needed in image)
+release.ps1
+
+# GitHub Actions (not needed in image)
+.github/
+
+# Environment overrides
+.env
+.env.example
+
+# IDE / OS
+.vscode/
+.DS_Store

@@ -1,0 +1,12 @@
+{
+    "name": "mailtrail",
+    "version": "1.0.0",
+    "description": "Postfix log viewer with SQLite-backed search",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "better-sqlite3": "^11.7.0"
+    }
+}

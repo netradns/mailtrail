@@ -1,0 +1,7 @@
+# This directory holds runtime data (created automatically):
+# - mailtrail.db       SQLite database (log index)
+# - auth.json          Admin credentials
+# - settings.json      App settings (test email, retention, etc.)
+# - ingest-cursor.json Log file read positions
+#
+# Do not commit actual data files to version control.

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MailTrail — Postfix Log Viewer</title>
+<link rel="icon" type="image/png" href="images/mailtrail.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-mark">
+        <img src="images/mailtrail.png" alt="MailTrail" width="30" height="30">
+      </div>
+    </div>
+    <div class="login-app-name">MailTrail</div>
+    <div class="login-sub">Enter your credentials to continue.</div>
+    <form id="loginForm" onsubmit="return handleLogin(event)">
+      <div class="login-field">
+        <label>Username</label>
+        <input id="loginUser" type="text" placeholder="Username" autocomplete="username" autofocus>
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <button class="login-btn" type="submit">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="sidebar-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <img src="images/mailtrail.png" alt="MailTrail" width="30" height="30">
+    </div>
+    <div class="logo-name">MailTrail</div>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-label">Views</div>
+    <div class="sb-item active" id="nav-dashboard" onclick="showPage('dashboard')">
+      <svg class="sbi" viewBox="0 0 15 15" fill="none"><rect x="2" y="8" width="2.5" height="5" rx=".6" fill="currentColor"/><rect x="6.25" y="5" width="2.5" height="8" rx=".6" fill="currentColor"/><rect x="10.5" y="2" width="2.5" height="11" rx=".6" fill="currentColor"/></svg>
+      Dashboard
+    </div>
+    <div class="sb-item" id="nav-logs" onclick="showPage('logs')">
+      <svg class="sbi" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.4"/><line x1="9.8" y1="9.8" x2="13" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Log Search
+    </div>
+    <div class="sb-item" id="nav-live" onclick="showPage('live')">
+      <svg class="sbi" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.3"/><path d="M7.5 4.5v3l2.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      Live Tail
+    </div>
+    <div class="sb-item" id="nav-settings" onclick="showPage('settings')">
+      <svg class="sbi" viewBox="0 0 16 16" fill="none"><path d="M6.6 1h2.8l.4 2.1a5.5 5.5 0 011.4.8l2-.8 1.4 2.4-1.6 1.3a5.6 5.6 0 010 1.6l1.6 1.3-1.4 2.4-2-.8a5.5 5.5 0 01-1.4.8L9.4 15H6.6l-.4-2.1a5.5 5.5 0 01-1.4-.8l-2 .8-1.4-2.4 1.6-1.3a5.6 5.6 0 010-1.6L1.4 6.3l1.4-2.4 2 .8a5.5 5.5 0 011.4-.8L6.6 1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/></svg>
+      Settings
+    </div>
+  </div>
+
+  <div class="sb-footer">
+    <div class="sb-status">
+      <div class="sdot" id="health-dot"></div>
+      <span class="stext" id="health-label">Checking…</span>
+    </div>
+    <button class="sb-footer-btn" onclick="logout()">
+      <svg width="14" height="14" viewBox="0 0 15 15" fill="none"><path d="M5 2H3a1 1 0 00-1 1v9a1 1 0 001 1h2M7 11l3-3.5L7 4M10 7.5H4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Logout
+    </button>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <button class="hamburger" onclick="openSidebar()" aria-label="Menu"><span></span><span></span><span></span></button>
+    <span class="topbar-crumb" id="topbar-title"><b>Dashboard</b> &mdash; Mail Health</span>
+    <div class="topbar-right">
+      <div class="tz-select">
+        <span class="live-clock" id="liveClock"></span>
+        <label>TZ:</label>
+        <div class="tz-custom-select" id="tzSelectWrap" onclick="toggleTzDropdown()">
+          <span class="tz-custom-value" id="tzSelectLabel">Local</span>
+          <svg class="tz-custom-arrow" width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="tz-custom-dropdown" id="tzDropdown">
+          <div class="tz-option" data-tz="local" onclick="selectTz('local')">Local</div>
+          <div class="tz-option" data-tz="UTC" onclick="selectTz('UTC')">UTC</div>
+          <div class="tz-option" data-tz="America/New_York" onclick="selectTz('America/New_York')">US Eastern</div>
+          <div class="tz-option" data-tz="America/Chicago" onclick="selectTz('America/Chicago')">US Central</div>
+          <div class="tz-option" data-tz="America/Denver" onclick="selectTz('America/Denver')">US Mountain</div>
+          <div class="tz-option" data-tz="America/Los_Angeles" onclick="selectTz('America/Los_Angeles')">US Pacific</div>
+          <div class="tz-option" data-tz="Europe/London" onclick="selectTz('Europe/London')">London</div>
+          <div class="tz-option" data-tz="Europe/Berlin" onclick="selectTz('Europe/Berlin')">Berlin</div>
+          <div class="tz-option" data-tz="Asia/Tokyo" onclick="selectTz('Asia/Tokyo')">Tokyo</div>
+        </div>
+      </div>
+      <div class="theme-toggle">
+        <button class="tt-btn active" id="tt-light" onclick="setTheme('light')"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="2.3" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1=".5" x2="6" y2="2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="6" y1="10" x2="6" y2="11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1=".5" y1="6" x2="2" y2="6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="10" y1="6" x2="11.5" y2="6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="2.05" y1="2.05" x2="2.9" y2="2.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="9.1" y1="9.1" x2="9.95" y2="9.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="9.95" y1="2.05" x2="9.1" y2="2.9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="2.9" y1="9.1" x2="2.05" y2="9.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg><span>Light</span></button>
+        <button class="tt-btn" id="tt-dark" onclick="setTheme('dark')"><svg width="11" height="11" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="currentColor"/><circle cx="8.2" cy="4.2" r="3.6" fill="var(--bg)"/></svg><span>Dark</span></button>
+        <button class="tt-btn" id="tt-system" onclick="setTheme('system')"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><rect x="1" y="2" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><line x1="4" y1="11" x2="8" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><line x1="6" y1="9" x2="6" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg><span>System</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- DASHBOARD PAGE -->
+    <div class="page active" id="page-dashboard">
+      <div class="dash-toolbar">
+        <span class="dash-updated" id="dashUpdated"></span>
+        <button class="btn btn-primary btn-sm" onclick="loadDashboard()">
+          <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M2.5 8.5a5 5 0 019.5-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12.5 6.5a5 5 0 01-9.5 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M12 3v3.5h-3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 12v-3.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Refresh
+        </button>
+      </div>
+      <div class="stat-grid" id="dashCards"></div>
+      <div class="two-col">
+        <div class="section" id="sec-postfix">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--green-light);color:var(--green)">✉</div>
+            <span class="section-title">Postfix Status</span>
+            <span class="section-sub" style="cursor:pointer" onclick="renderPostfixHealth()">↻ refresh</span>
+          </div>
+          <div class="section-body" id="postfixHealth"></div>
+        </div>
+        <div class="section" id="sec-test" data-role="admin">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--purple-light);color:var(--purple)">⇢</div>
+            <span class="section-title">Send Test Email</span>
+          </div>
+          <div class="section-body" style="padding:14px 18px">
+            <div style="font-size:12px;color:var(--text-3);margin-bottom:10px">From: <span id="testFromDisplay" style="font-family:'DM Mono',monospace;color:var(--text)">—</span></div>
+            <div style="display:flex;gap:8px;align-items:flex-end">
+              <div class="field-group" style="flex:1">
+                <label class="field-label">To</label>
+                <input class="f-input mono" id="testTo" placeholder="recipient@example.com">
+              </div>
+              <button class="btn btn-primary btn-sm" id="testSendBtn" onclick="sendTestEmail()" style="height:36px">Send Test</button>
+            </div>
+            <div id="testResult"></div>
+          </div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="section" id="sec-hourly">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--blue-light);color:var(--blue)">◈</div>
+            <span class="section-title">Hourly Volume</span>
+          </div>
+          <div class="section-body" id="hourlyChart"></div>
+        </div>
+        <div class="section" id="sec-status">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--green-light);color:var(--green)">◉</div>
+            <span class="section-title">Status Breakdown</span>
+          </div>
+          <div class="section-body" id="statusBreakdown"></div>
+        </div>
+      </div>
+      <div class="section" id="sec-errors">
+        <div class="section-hdr">
+          <div class="section-ico" style="background:var(--red-light);color:var(--red)">⚠</div>
+          <span class="section-title">Recent Errors</span>
+          <span class="section-sub" id="errorCount">0</span>
+        </div>
+        <div class="section-body" id="errorList"></div>
+      </div>
+      <div class="section">
+        <div class="section-hdr">
+          <div class="section-ico" style="background:var(--teal-light);color:var(--teal)">⇢</div>
+          <span class="section-title">Throughput</span>
+        </div>
+        <div class="section-body" id="rateStats"></div>
+      </div>
+      <div class="two-col">
+        <div class="section">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--purple-light);color:var(--purple)">◉</div>
+            <span class="section-title">Top Senders</span>
+          </div>
+          <div class="section-body" id="topSenders"></div>
+        </div>
+        <div class="section">
+          <div class="section-hdr">
+            <div class="section-ico" style="background:var(--teal-light);color:var(--teal)">◈</div>
+            <span class="section-title">Top Recipients</span>
+          </div>
+          <div class="section-body" id="topRecipients"></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-hdr">
+          <div class="section-ico" style="background:var(--blue-light);color:var(--blue)">◎</div>
+          <span class="section-title">Recipient Domain Stats</span>
+          <span class="section-sub">Delivery status by destination domain</span>
+        </div>
+        <div class="section-body" id="recipientDomainStats"></div>
+      </div>
+    </div>
+
+    <!-- LOGS PAGE -->
+    <div class="page" id="page-logs">
+      <div class="panel">
+        <div class="filter-grid">
+          <div class="filter-group">
+            <label class="field-label">Search</label>
+            <input class="f-input mono" id="fSearch" placeholder="Queue ID, address, message…" autocomplete="off">
+          </div>
+          <div class="filter-group">
+            <label class="field-label">From</label>
+            <input class="f-input mono" id="fFrom" placeholder="sender@domain.com">
+          </div>
+          <div class="filter-group">
+            <label class="field-label">To</label>
+            <input class="f-input mono" id="fTo" placeholder="recipient@domain.com">
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Domain</label>
+            <input class="f-input mono" id="fDomain" placeholder="example.com">
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Status</label>
+            <select class="f-select" id="fStatus">
+              <option value="">All</option>
+              <option value="sent">Sent</option>
+              <option value="bounced">Bounced</option>
+              <option value="deferred">Deferred</option>
+              <option value="reject">Rejected</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Date From</label>
+            <input class="f-input" id="fDateFrom" type="date">
+          </div>
+          <div class="filter-group">
+            <label class="field-label">Date To</label>
+            <input class="f-input" id="fDateTo" type="date">
+          </div>
+          <div class="filter-group filter-actions">
+            <button class="btn btn-primary" onclick="runSearch()">
+              <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.6"/><line x1="9.8" y1="9.8" x2="13" y2="13" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              Search
+            </button>
+            <button class="btn btn-ghost" onclick="exportSearch()" title="Export results as CSV">
+              <svg width="13" height="13" viewBox="0 0 15 15" fill="none"><path d="M7.5 1v9M4 7.5l3.5 3.5L11 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2h11v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Export
+            </button>
+            <button class="btn btn-ghost" onclick="clearSearch()">Clear</button>
+          </div>
+        </div>
+      </div>
+      <div id="logResults">
+        <div class="welcome">
+          <div class="welcome-ico" style="background:var(--blue-light);color:var(--blue)">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="1.7"/><line x1="15.5" y1="15.5" x2="19.5" y2="19.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          <div class="welcome-h">Search your Postfix logs</div>
+          <div class="welcome-p">Filter by sender, recipient, domain, status, or date range. Results show the most recent entries first.</div>
+        </div>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- LIVE TAIL PAGE -->
+    <div class="page" id="page-live">
+      <div class="panel" style="display:flex;align-items:center;gap:12px">
+        <div class="live-indicator"><div class="live-dot-pulse"></div> Live Tail</div>
+        <span style="font-size:12px;color:var(--text-3)">Auto-refreshes every 5 seconds</span>
+        <button class="btn btn-ghost btn-sm" onclick="refreshTail()" style="margin-left:auto">Refresh Now</button>
+      </div>
+      <div id="tailResults" class="log-table-wrap"></div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div class="page" id="page-settings" data-role="admin">
+      <div class="panel">
+        <div class="field-label">About</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:4px">MailTrail <span id="appVersion" style="font-family:'DM Mono',monospace">v1.0.0</span></div>
+      </div>
+      <div class="panel">
+        <div class="field-label">Alert Channels</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:16px">Get notified when bounce rates spike, queue depth grows, or Postfix goes down. Add multiple channels to receive alerts on all of them.</div>
+        <div class="alert-add-form">
+          <div class="field-group" style="position:relative">
+            <label class="field-label">Service</label>
+            <div class="custom-select" id="alertServiceSelect" onclick="toggleAlertDropdown()">
+              <span class="custom-select-value" id="alertServiceLabel">Slack</span>
+              <svg class="custom-select-arrow" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="custom-select-dropdown" id="alertServiceDropdown">
+              <div class="custom-select-option" data-value="slack" onclick="selectAlertService('slack')">Slack</div>
+              <div class="custom-select-option" data-value="teams" onclick="selectAlertService('teams')">Microsoft Teams</div>
+              <div class="custom-select-option" data-value="pagerduty" onclick="selectAlertService('pagerduty')">PagerDuty</div>
+              <div class="custom-select-option" data-value="discord" onclick="selectAlertService('discord')">Discord</div>
+              <div class="custom-select-option" data-value="email" onclick="selectAlertService('email')">Email</div>
+              <div class="custom-select-option" data-value="webhook" onclick="selectAlertService('webhook')">Generic Webhook</div>
+            </div>
+            <input type="hidden" id="setAlertService" value="slack">
+          </div>
+          <div class="field-group" style="flex:1">
+            <label class="field-label" id="alertUrlLabel">Webhook URL</label>
+            <input class="f-input mono" id="setAlertUrl" placeholder="https://hooks.slack.com/services/..." autocomplete="off">
+          </div>
+          <div class="field-group" id="alertEmailFromGroup" style="display:none;flex:1">
+            <label class="field-label">Sender Address</label>
+            <input class="f-input mono" id="setAlertFrom" placeholder="mailtrail-alerts@yourdomain.com" autocomplete="off">
+          </div>
+        </div>
+        <div class="alert-help" id="alertHelp">Create an <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener">Incoming Webhook</a> in your Slack workspace and paste the URL above.</div>
+        <div class="btn-row" style="margin-bottom:16px">
+          <button class="btn btn-primary" onclick="addAlertChannel()">Add Channel</button>
+        </div>
+        <div id="alertChannelList"></div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin:16px 0 10px">Alert Triggers</div>
+        <div class="alert-toggle-row">
+          <label class="toggle-label"><input type="checkbox" id="setAlertBounce" onchange="autoSaveAlertSettings()"> Bounce rate exceeds</label>
+          <input class="f-input" id="setAlertBounceThresh" type="number" min="1" max="100" value="5" style="width:70px" onchange="autoSaveAlertSettings()"> <span style="font-size:12px;color:var(--text-3)">%</span>
+        </div>
+        <div class="alert-toggle-row">
+          <label class="toggle-label"><input type="checkbox" id="setAlertQueue" onchange="autoSaveAlertSettings()"> Queue depth exceeds</label>
+          <input class="f-input" id="setAlertQueueThresh" type="number" min="1" max="10000" value="50" style="width:70px" onchange="autoSaveAlertSettings()"> <span style="font-size:12px;color:var(--text-3)">messages</span>
+        </div>
+        <div class="alert-toggle-row">
+          <label class="toggle-label"><input type="checkbox" id="setAlertHealth" onchange="autoSaveAlertSettings()"> Postfix health check fails</label>
+        </div>
+        <div class="field-row" style="margin-top:12px">
+          <div class="field-group">
+            <label class="field-label">Cooldown (minutes)</label>
+            <input class="f-input" id="setAlertCooldown" type="number" min="1" max="1440" value="15" style="width:100px" onchange="autoSaveAlertSettings()">
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="field-label">Test Email Settings</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:16px">Configure the sender address used when sending test emails from the dashboard.</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Sender Address</label>
+            <input class="f-input mono" id="setTestAddr" placeholder="mailtrail-test@example.com" autocomplete="off">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Sender Display Name</label>
+            <input class="f-input" id="setTestName" placeholder="MailTrail Test" autocomplete="off">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveTestSettings()">Save Settings</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="field-label">Log Retention &amp; Storage</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:16px">Control how long log entries are kept in the database and the maximum disk space for raw log files. Changes take effect within the hour.</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">Retention (days)</label>
+            <input class="f-input" id="setRetention" type="number" min="1" max="365" placeholder="90">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Max Log File Size (GB)</label>
+            <input class="f-input" id="setMaxLog" type="number" min="1" max="100" step="0.5" placeholder="20">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveRetentionSettings()">Save Retention</button>
+        </div>
+        <div id="storageInfo" style="font-size:13px;color:var(--text-2);margin-top:14px;padding-top:14px;border-top:1px solid var(--border)"></div>
+      </div>
+      <div class="panel">
+        <div class="field-label">Change Admin Credentials</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:16px">Update the username and password used to access MailTrail.</div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label">New Username</label>
+            <input class="f-input" id="cpUser" placeholder="admin" autocomplete="off">
+          </div>
+          <div class="field-group">
+            <label class="field-label">New Password</label>
+            <input class="f-input" id="cpPass" type="password" placeholder="Min 4 characters" autocomplete="new-password">
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Confirm Password</label>
+          <input class="f-input" id="cpPass2" type="password" placeholder="Re-enter password" autocomplete="new-password">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="changePassword()">Update Credentials</button>
+        </div>
+      </div>
+      <div class="panel danger-zone">
+        <div class="field-label" style="color:var(--red)">Danger Zone</div>
+        <div style="font-size:13px;color:var(--text-3);margin-bottom:16px">Permanently delete all Postfix log data, database entries, and ingestion history. Dashboards and search will reset to zero. This cannot be undone.</div>
+        <div id="purgeStep1">
+          <button class="btn btn-danger" onclick="showPurgeConfirm()">Purge All Data</button>
+        </div>
+        <div id="purgeStep2" style="display:none">
+          <div style="padding:14px;background:var(--red-light);border:1px solid var(--red-border);border-radius:6px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;color:var(--red);margin-bottom:6px">This action is irreversible</div>
+            <div style="font-size:12px;color:var(--text-2)">All Postfix log entries in the database will be deleted. All raw log files (.log and .json) will be removed from disk. The ingestion cursor will be reset. There is no way to recover this data.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <label style="font-size:12px;color:var(--text-3)">Type <span style="font-weight:700;color:var(--red)">CONFIRM</span> to proceed:</label>
+            <input class="f-input" id="purgeConfirmInput" placeholder="CONFIRM" autocomplete="off" style="width:140px">
+            <button class="btn btn-danger" onclick="executePurge()">Delete Everything</button>
+            <button class="btn btn-ghost" onclick="cancelPurge()">Cancel</button>
+          </div>
+          <div id="purgeResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="main-footer">&copy; 2026 MailTrail. All rights reserved.</footer>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content" id="modalContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/utils.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/search.js"></script>
+<script src="js/tail.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/modals.js"></script>
+</body>
+</html>

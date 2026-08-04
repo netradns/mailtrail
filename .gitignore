@@ -1,0 +1,23 @@
+# Runtime data — created by the app, persisted in /docker/mailtrail/data/
+data/mailtrail.db
+data/mailtrail.db-wal
+data/mailtrail.db-shm
+data/auth.json
+data/settings.json
+data/ingest-cursor.json
+
+# Node
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+
+# Environment overrides
+.env
+
+# Release tooling (local dev only, never pushed to repo)
+release.ps1
