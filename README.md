@@ -46,7 +46,7 @@ Built for engineers who need visibility into their Postfix mail server without t
 - Click any IP address for geolocation (city, region, country, org, timezone) via server-side proxy
 - Click any domain in relay fields for DNS resolution via Cloudflare DoH
 - Lookups appear inline without leaving the page
-- Works behind HTTPS/Traefik (no mixed content issues)
+- Works behind HTTPS (no mixed content issues)
 
 **Live Tail**
 - Real-time correlated message stream, auto-refreshes every 5 seconds
@@ -124,63 +124,39 @@ At 2,000 emails/day with 90-day retention, expect ~500MB of SQLite DB and ~1GB o
 
 ### 1. Prepare the host
 
-These commands create the directory structure on the Docker host. Run them once before the first deploy.
+Create the directory structure on the Docker host:
 
 ```
 Host directory layout:
 
 /docker/
-├── traefik/                ← Traefik reverse proxy (optional)
+├── postfix/                <- Postfix mail relay
 │   ├── config/
-│   └── certs/
-├── postfix/                ← Postfix mail relay
-│   ├── config/
-│   ├── logs/               ← Shared with MailTrail (read + write)
+│   ├── logs/               <- Shared with MailTrail (read + write)
 │   └── dkim/keys/
-└── mailtrail/              ← This repo
-    └── data/               ← SQLite DB, settings, auth (persisted)
+└── mailtrail/              <- MailTrail
+    └── data/               <- SQLite DB, settings, auth (persisted)
 ```
 
 ```bash
 # Create all directories
-sudo mkdir -p /docker/traefik/config
-sudo mkdir -p /docker/traefik/certs
 sudo mkdir -p /docker/postfix/config
 sudo mkdir -p /docker/postfix/logs
 sudo mkdir -p /docker/postfix/dkim/keys
 sudo mkdir -p /docker/mailtrail/data
 
 # Set directory permissions
-sudo chmod 755 /docker /docker/traefik /docker/traefik/config /docker/traefik/certs \
-  /docker/postfix /docker/postfix/config /docker/postfix/logs /docker/postfix/dkim \
+sudo chmod 755 /docker /docker/postfix /docker/postfix/config \
+  /docker/postfix/logs /docker/postfix/dkim \
   /docker/mailtrail /docker/mailtrail/data
 
 # Lock DKIM private keys to root only
 sudo chmod 700 /docker/postfix/dkim/keys
-
-# Create the shared Docker network
-docker network create traefik-public
 ```
 
-> **Note on the shared logs directory**: `/docker/postfix/logs/` is the only path that lives outside `/docker/mailtrail/`. Postfix writes log files here, and MailTrail reads them for ingestion and deletes old ones for storage management. Both containers mount this same host directory. This is intentional — the logs belong to Postfix, but MailTrail needs access to do its job.
+> **Note on the shared logs directory**: `/docker/postfix/logs/` is the only path that lives outside `/docker/mailtrail/`. Postfix writes log files here, and MailTrail reads them for ingestion and deletes old ones for storage management. Both containers mount this same host directory. This is intentional -- the logs belong to Postfix, but MailTrail needs access to do its job.
 
-### 2. Copy files to the host
-
-From your local machine, copy all three directories to the host:
-
-```bash
-scp -r mailtrail postfix traefik user@your-host:/docker/
-```
-
-If `scp` fails with permission errors, temporarily give your user ownership:
-
-```bash
-ssh user@your-host 'sudo chown -R $(whoami) /docker'
-```
-
-Then re-run the `scp`. The containers handle their own internal permissions at startup.
-
-### 3. Fix Postfix log file permissions
+### 2. Fix Postfix log file permissions
 
 MailTrail runs as a non-root user (`mailtrail`) inside its container. It needs read access to ingest logs and write access to delete old log files when the storage limit is reached.
 
@@ -190,24 +166,17 @@ Postfix's rsyslog creates log files owned by root. After Postfix starts and writ
 sudo chmod 644 /docker/postfix/logs/*
 ```
 
-The included `postfix/rsyslog.conf` sets `$FileCreateMode 0644` so new log files are created world-readable automatically. If you use a custom rsyslog config, make sure it does the same — otherwise you'll need to re-run the chmod after every log rotation.
+The included `postfix/rsyslog.conf` sets `$FileCreateMode 0644` so new log files are created world-readable automatically. If you use a custom rsyslog config, make sure it does the same -- otherwise you'll need to re-run the chmod after every log rotation.
 
-### 4. Start the services
-
-Deploy in this order: Traefik → Postfix → MailTrail.
+### 3. Start the services
 
 ```bash
-cd /docker/traefik  && docker compose up -d
-cd /docker/postfix  && docker compose up -d
-cd /docker/mailtrail && docker compose build && docker compose up -d
+docker compose up -d
 ```
 
-### 5. Verify
+### 4. Verify
 
 ```bash
-# Check all containers are running
-docker ps
-
 # Check MailTrail logs for successful startup
 docker logs mailtrail
 
@@ -218,9 +187,9 @@ docker logs mailtrail
 # [mailtrail] Admin: admin / *****
 ```
 
-Open `https://mailtrail.yourdomain.com` (or `http://localhost:8080` without Traefik) and log in with the default credentials.
+Open `http://localhost:8080` and log in with the default credentials.
 
-### 6. Post-deploy checklist
+### 5. Post-deploy checklist
 
 - [ ] Change the default admin password from the Settings page
 - [ ] Change the default viewer password from the Settings page
@@ -236,7 +205,7 @@ If you already have a Postfix server writing logs somewhere:
 ```bash
 cp docker-compose.example.yml docker-compose.yml
 # Edit: set the log path, SMTP_HOST, and credentials
-docker compose build && docker compose up -d
+docker compose up -d
 ```
 
 ## Configuration
