@@ -396,21 +396,6 @@ frontend/
     modals.js                → QID tracking, sender detail, IP/DNS inline lookups
 ```
 
-## Reverse Proxy (Traefik)
-
-MailTrail is designed to run behind Traefik. Add these labels to the MailTrail service in `docker-compose.yml`:
-
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.mailtrail.rule=Host(`mailtrail.yourdomain.com`)"
-  - "traefik.http.routers.mailtrail.entrypoints=websecure"
-  - "traefik.http.routers.mailtrail.tls=true"
-  - "traefik.http.services.mailtrail.loadbalancer.server.port=3000"
-```
-
-Make sure the MailTrail container is on the `traefik-public` network.
-
 ## Troubleshooting
 
 **"EACCES: permission denied, open '/logs/mail.json'"**
